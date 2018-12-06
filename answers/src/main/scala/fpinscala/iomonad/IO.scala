@@ -229,12 +229,12 @@ object IO2aTests {
   }
    */
 
-  val f: Int => IO[Int] = (i: Int) => Return(i)
+  val f: Int => IO2a.IO[Int] = (i: Int) => Return(i)
 
-  val g: Int => IO[Int] =
+  val g: Int => IO2a.IO[Int] =
     List.fill(10000)(f).foldLeft(f){
-      (a: Function1[Int, IO[Int]],
-        b: Function1[Int, IO[Int]]) => {
+      (a: Function1[Int, IO2a.IO[Int]],
+        b: Function1[Int, IO2a.IO[Int]]) => {
         (x: Int) => IO.suspend(a(x).flatMap(b))
       }
     }
@@ -279,10 +279,10 @@ object IO2b {
   @annotation.tailrec def run[A](t: TailRec[A]): A = t match {
     case Return(a) => a
     case Suspend(r) => r()
-    case FlatMap(x, f) => x match {
+    case FlatMap(x : TailRec[A], f : (A => TailRec[A])) => x match {
       case Return(a) => run(f(a))
       case Suspend(r) => run(f(r()))
-      case FlatMap(y, g) => run(y flatMap (a => g(a) flatMap f))
+      case FlatMap(y : TailRec[A], g :(A => TailRec[A])) => run(y.flatMap(a => g(a).flatMap(b => f(b))))
     }
   }
 }
@@ -337,9 +337,10 @@ object IO2c {
   }
 
   // return either a `Suspend`, a `Return`, or a right-associated `FlatMap`
-  @annotation.tailrec def step[A](async: Async[A]): Async[A] = async match {
-    case FlatMap(FlatMap(x, f), g) => step(x flatMap (a => f(a) flatMap g))
-    case FlatMap(Return(x), f) => step(f(x))
+  @annotation.tailrec
+  def step[A](async: Async[A]): Async[A] = async match {
+    case FlatMap(FlatMap(x : Async[A], f : (A => Async[A])), g : (A => Async[A])) => step(x.flatMap (a => f(a).flatMap(b => g(b))))
+    case FlatMap(Return(x), f : (A => Async[A])) => step(f(x))
     case _ => async
   }
 
