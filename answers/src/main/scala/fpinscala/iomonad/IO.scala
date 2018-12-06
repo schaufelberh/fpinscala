@@ -198,13 +198,14 @@ object IO2a {
   // tail-recursive function, the one tricky case is left-nested
   // flatMaps, as in `((a flatMap f) flatMap g)`, which we
   // reassociate to the right as `a flatMap (ar => f(a) flatMap g)`
-  @annotation.tailrec def run[A](io: IO[A]): A = io match {
+  @annotation.tailrec
+  def run[A](io: IO2a.IO[A]): A = io match {
     case Return(a) => a
     case Suspend(r) => r()
-    case FlatMap(x, f) => x match {
+    case FlatMap(x : IO[A], f : (A => IO[A] )) => x  match {
       case Return(a) => run(f(a))
       case Suspend(r) => run(f(r()))
-      case FlatMap(y, g) => run(y flatMap (a => g(a) flatMap f))
+      case FlatMap(y : IO[A], g : (A => IO[A])) => run(y.flatMap(a => g(a).flatMap(b => f(b))))
     }
   }
 }
