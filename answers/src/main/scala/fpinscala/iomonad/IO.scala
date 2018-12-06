@@ -347,7 +347,7 @@ object IO2c {
   def run[A](async: Async[A]): Par[A] = step(async) match {
     case Return(a) => Par.unit(a)
     case Suspend(r) => r
-    case FlatMap(x, f) => x match {
+    case FlatMap(x, f : (A => Async[A])) => x match {
       case Suspend(r) => Par.flatMap(r)(a => run(f(a)))
       case _ => sys.error("Impossible, since `step` eliminates these cases")
     }
@@ -366,10 +366,8 @@ object IO3 {
   */
 
   sealed trait Free[F[_],A] {
-    def flatMap[B](f: A => Free[F,B]): Free[F,B] =
-      FlatMap(this, f)
-    def map[B](f: A => B): Free[F,B] =
-      flatMap(f andThen (Return(_)))
+    def flatMap[B](f: A => Free[F,B]): Free[F,B] = FlatMap(this, f)
+    def map[B](f: A => B): Free[F,B] = flatMap(f andThen (Return(_)))
   }
   case class Return[F[_],A](a: A) extends Free[F, A]
   case class Suspend[F[_],A](s: F[A]) extends Free[F, A]
@@ -380,34 +378,45 @@ object IO3 {
   def freeMonad[F[_]]: Monad[({type f[a] = Free[F,a]})#f] =
     new Monad[({type f[a] = Free[F,a]})#f] {
       def unit[A](a: => A) = Return(a)
-      def flatMap[A,B](fa: Free[F, A])(f: A => Free[F, B]) = fa flatMap f
+      def flatMap[A,B](fa: Free[F, A])(f: A => Free[F, B]): Free[F, B] = fa flatMap f
     }
 
   // Exercise 2: Implement a specialized `Function0` interpreter.
   @annotation.tailrec
-  def runTrampoline[A](a: Free[Function0,A]): A = (a) match {
-    case Return(a) => a
+  def runTrampoline[A](a: Free[Function0,A]): A = a match {
+    case Return(a1) => a1
     case Suspend(r) => r()
-    case FlatMap(x,f) => x match {
-      case Return(a) => runTrampoline { f(a) }
+    case FlatMap(x : Free[Function0,A],f : (A => Free[Function0,A])) => x match {
+      case Return(a1) => runTrampoline { f(a1) }
       case Suspend(r) => runTrampoline { f(r()) }
-      case FlatMap(a0,g) => runTrampoline { a0 flatMap { a0 => g(a0) flatMap f } }
+      case FlatMap(a1 : Free[Function0,A], g : (A => Free[Function0,A])) => {
+//        val x : Free[Function0, A]  = for {
+//          a1  <- a
+//          b   <- g(a1)
+//        } yield f(b)
+//        runTrampoline ( x  )
+        def g1 : A => Free[Function0,A] = g
+        var x1 = a.flatMap(a1 => g1(a1).flatMap(b1 => f(b1)))
+        runTrampoline(x1)
+      }
     }
   }
 
   // Exercise 3: Implement a `Free` interpreter which works for any `Monad`
   def run[F[_],A](a: Free[F,A])(implicit F: Monad[F]): F[A] = step(a) match {
-    case Return(a) => F.unit(a)
+    case Return(a1) => F.unit(a1)
     case Suspend(r) => r
-    case FlatMap(Suspend(r), f) => F.flatMap(r)(a => run(f(a)))
+    case FlatMap(Suspend(r), f :(A => IO3.Free[F, A]) ) => F.flatMap(r)(a1 => run(f(a1)))
     case _ => sys.error("Impossible, since `step` eliminates these cases")
   }
 
   // return either a `Suspend`, a `Return`, or a right-associated `FlatMap`
   @annotation.tailrec
   def step[F[_],A](a: Free[F,A]): Free[F,A] = a match {
-    case FlatMap(FlatMap(x, f), g) => step(x flatMap (a => f(a) flatMap g))
-    case FlatMap(Return(x), f) => step(f(x))
+    case FlatMap(FlatMap(x, f : (A => Free[F, A])), g : (A => Free[F,A])) => {
+      step(x.flatMap (a1 => f(a1).flatMap( b => g(b))))
+    }
+    case FlatMap(Return(x), f : (A => Free[F, A])) => step(f(x))
     case _ => a
   }
 
@@ -492,7 +501,7 @@ object IO3 {
     step(free) match {
       case Return(a) => G.unit(a)
       case Suspend(r) => t(r)
-      case FlatMap(Suspend(r), f) => G.flatMap(t(r))(a => runFree(f(a))(t))
+      case FlatMap(Suspend(r), f : (A => Free[F,A])) => G.flatMap(t(r))(a1 => runFree(f(a1))(t))
       case _ => sys.error("Impossible, since `step` eliminates these cases")
     }
 
