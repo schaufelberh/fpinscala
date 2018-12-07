@@ -7,19 +7,19 @@ import scala.{Option => _, Either => _, _}
 sealed trait Either[+E,+A] {
  def map[B](f: A => B): Either[E, B] = 
    this match {
-     case Right(a) => Right(f(a))
-     case Left(e) => Left(e)
+     case fpinscala.errorhandling.Right(a) => fpinscala.errorhandling.Right(f(a))
+     case fpinscala.errorhandling.Left(e) => fpinscala.errorhandling.Left(e)
    }
    
  def flatMap[EE >: E, B](f: A => Either[EE, B]): Either[EE, B] =
    this match {
-     case Left(e) => Left(e)
-     case Right(a) => f(a)
+     case fpinscala.errorhandling.Left(e) => fpinscala.errorhandling.Left(e)
+     case fpinscala.errorhandling.Right(a) => f(a)
    }
  def orElse[EE >: E, AA >: A](b: => Either[EE, AA]): Either[EE, AA] =
    this match {
-     case Left(_) => b
-     case Right(a) => Right(a)
+     case fpinscala.errorhandling.Left(_) => b
+     case fpinscala.errorhandling.Right(a) => fpinscala.errorhandling.Right(a)
    }
  def map2[EE >: E, B, C](b: Either[EE, B])(f: (A, B) => C): 
    Either[EE, C] = for { a <- this; b1 <- b } yield f(a,b1)
@@ -30,26 +30,26 @@ case class Right[+A](get: A) extends Either[Nothing,A]
 object Either {
   def mean(xs: IndexedSeq[Double]): Either[String, Double] = 
     if (xs.isEmpty) 
-      Left("mean of empty list!")
+      fpinscala.errorhandling.Left("mean of empty list!")
     else 
-      Right(xs.sum / xs.length)
+      fpinscala.errorhandling.Right(xs.sum / xs.length)
 
   def safeDiv(x: Int, y: Int): Either[Exception, Int] = 
-    try Right(x / y)
-    catch { case e: Exception => Left(e) }
+    try fpinscala.errorhandling.Right(x / y)
+    catch { case e: Exception => fpinscala.errorhandling.Left(e) }
 
   def Try[A](a: => A): Either[Exception, A] =
-    try Right(a)
-    catch { case e: Exception => Left(e) }
+    try fpinscala.errorhandling.Right(a)
+    catch { case e: Exception => fpinscala.errorhandling.Left(e) }
 
   def traverse[E,A,B](es: List[A])(f: A => Either[E, B]): Either[E, List[B]] = 
     es match {
-      case Nil => Right(Nil)
+      case Nil => fpinscala.errorhandling.Right(Nil)
       case h::t => (f(h) map2 traverse(t)(f))(_ :: _)
     }
   
   def traverse_1[E,A,B](es: List[A])(f: A => Either[E, B]): Either[E, List[B]] = 
-    es.foldRight[Either[E,List[B]]](Right(Nil))((a, b) => f(a).map2(b)(_ :: _))
+    es.foldRight[Either[E,List[B]]](fpinscala.errorhandling.Right(Nil))((a, b) => f(a).map2(b)(_ :: _))
   
   def sequence[E,A](es: List[Either[E,A]]): Either[E,List[A]] = 
     traverse(es)(x => x)

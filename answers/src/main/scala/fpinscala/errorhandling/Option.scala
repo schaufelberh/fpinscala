@@ -6,12 +6,12 @@ import scala.{Option => _, Either => _, _}
 sealed trait Option[+A] {
   def map[B](f: A => B): Option[B] = this match {
     case None => None
-    case Some(a) => Some(f(a))
+    case fpinscala.errorhandling.Some(a) => fpinscala.errorhandling.Some(f(a))
   }
 
   def getOrElse[B>:A](default: => B): B = this match {
     case None => default
-    case Some(a) => a
+    case fpinscala.errorhandling.Some(a) => a
   }
 
   def flatMap[B](f: A => Option[B]): Option[B] =
@@ -22,11 +22,11 @@ sealed trait Option[+A] {
   */
   def flatMap_1[B](f: A => Option[B]): Option[B] = this match {
     case None => None
-    case Some(a) => f(a)
+    case fpinscala.errorhandling.Some(a) => f(a)
   }
 
   def orElse[B>:A](ob: => Option[B]): Option[B] =
-    this map (Some(_)) getOrElse ob
+    this map (fpinscala.errorhandling.Some(_)) getOrElse ob
 
   /*
   Again, we can implement this with explicit pattern matching.
@@ -37,14 +37,14 @@ sealed trait Option[+A] {
   }
 
   def filter(f: A => Boolean): Option[A] = this match {
-    case Some(a) if f(a) => this
+    case fpinscala.errorhandling.Some(a) if f(a) => this
     case _ => None
   }
   /*
   This can also be defined in terms of `flatMap`.
   */
   def filter_1(f: A => Boolean): Option[A] =
-    flatMap(a => if (f(a)) Some(a) else None)
+    flatMap(a => if (f(a)) fpinscala.errorhandling.Some(a) else None)
 }
 case class Some[+A](get: A) extends Option[A]
 case object None extends Option[Nothing]
@@ -73,7 +73,7 @@ object Option {
 
   def mean(xs: Seq[Double]): Option[Double] =
     if (xs.isEmpty) None
-    else Some(xs.sum / xs.length)
+    else fpinscala.errorhandling.Some(xs.sum / xs.length)
 
   def variance(xs: Seq[Double]): Option[Double] =
     mean(xs) flatMap (m => mean(xs.map(x => math.pow(x - m, 2))))
@@ -88,7 +88,7 @@ object Option {
   */
   def sequence[A](a: List[Option[A]]): Option[List[A]] =
     a match {
-      case Nil => Some(Nil)
+      case Nil => fpinscala.errorhandling.Some(Nil)
       case h :: t => h flatMap (hh => sequence(t) map (hh :: _))
     }
   /*
@@ -97,16 +97,16 @@ object Option {
   unfortunate consequence of Scala using subtyping to encode algebraic data types.
   */
   def sequence_1[A](a: List[Option[A]]): Option[List[A]] =
-    a.foldRight[Option[List[A]]](Some(Nil))((x,y) => map2(x,y)(_ :: _))
+    a.foldRight[Option[List[A]]](fpinscala.errorhandling.Some(Nil))((x,y) => map2(x,y)(_ :: _))
 
   def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] =
     a match {
-      case Nil => Some(Nil)
+      case Nil => fpinscala.errorhandling.Some(Nil)
       case h::t => map2(f(h), traverse(t)(f))(_ :: _)
     }
 
   def traverse_1[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] =
-    a.foldRight[Option[List[B]]](Some(Nil))((h,t) => map2(f(h),t)(_ :: _))
+    a.foldRight[Option[List[B]]](fpinscala.errorhandling.Some(Nil))((h,t) => map2(f(h),t)(_ :: _))
 
   def sequenceViaTraverse[A](a: List[Option[A]]): Option[List[A]] =
     traverse(a)(x => x)
