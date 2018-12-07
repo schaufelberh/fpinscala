@@ -15,8 +15,7 @@ trait Applicative[F[_]] extends Functor[F] {
   // another function of type `B => C`. So if we map `f.curried` over an
   // `F[A]`, we get `F[B => C]`. Passing that to `apply` along with the
   // `F[B]` will give us the desired `F[C]`.
-  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] =
-    apply(map(fa)(f.curried))(fb)
+  def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] = apply(map(fa)(f.curried))(fb)
 
   // We simply use `map2` to lift a function into `F` so we can apply it
   // to both `fab` and `fa`. The function being lifted here is `_(_)`,
@@ -25,25 +24,20 @@ trait Applicative[F[_]] extends Functor[F] {
   //   1. A function `f`
   //   2. An argument `x` to that function
   // and it simply applies `f` to `x`.
-  def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] =
-    map2(fab, fa)(_(_))
+  def apply[A,B](fab: F[A => B])(fa: F[A]): F[B] = map2(fab, fa)(_(_))
 
   def unit[A](a: => A): F[A]
 
-  def map[A,B](fa: F[A])(f: A => B): F[B] =
-    apply(unit(f))(fa)
+  def map[A,B](fa: F[A])(f: A => B): F[B] = apply(unit(f))(fa)
 
-  def sequence[A](fas: List[F[A]]): F[List[A]] =
-    traverse(fas)(fa => fa)
+  def sequence[A](fas: List[F[A]]): F[List[A]] = traverse(fas)(fa => fa)
 
   def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] =
     as.foldRight(unit(List[B]()))((a, fbs) => map2(f(a), fbs)(_ :: _))
 
-  def replicateM[A](n: Int, fa: F[A]): F[List[A]] =
-    sequence(List.fill(n)(fa))
+  def replicateM[A](n: Int, fa: F[A]): F[List[A]] = sequence(List.fill(n)(fa))
 
-  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] =
-    map2(fa, fb)((_,_))
+  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] = map2(fa, fb)((_,_))
 
   def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = {
     val self = this
@@ -117,20 +111,15 @@ object Applicative {
 }
 
 trait Monad[F[_]] extends Applicative[F] {
-  def flatMap[A,B](ma: F[A])(f: A => F[B]): F[B] =
-    join(map(ma)(f))
+  def flatMap[A,B](ma: F[A])(f: A => F[B]): F[B] = join(map(ma)(f))
 
-  override def apply[A,B](mf: F[A => B])(ma: F[A]): F[B] =
-    flatMap(mf)(f => map(ma)(f))
+  override def apply[A,B](mf: F[A => B])(ma: F[A]): F[B] = flatMap(mf)(f => map(ma)(f))
 
-  override def map[A,B](m: F[A])(f: A => B): F[B] =
-    flatMap(m)(a => unit(f(a)))
+  override def map[A,B](m: F[A])(f: A => B): F[B] = flatMap(m)(a => unit(f(a)))
 
-  override def map2[A,B,C](ma: F[A], mb: F[B])(f: (A, B) => C): F[C] =
-    flatMap(ma)(a => map(mb)(b => f(a, b)))
+  override def map2[A,B,C](ma: F[A], mb: F[B])(f: (A, B) => C): F[C] = flatMap(ma)(a => map(mb)(b => f(a, b)))
 
-  def compose[A,B,C](f: A => F[B], g: B => F[C]): A => F[C] =
-    a => flatMap(f(a))(g)
+  def compose[A,B,C](f: A => F[B], g: B => F[C]): A => F[C] = a => flatMap(f(a))(g)
 
   def join[A](mma: F[F[A]]): F[A] = flatMap(mma)(ma => ma)
 }
@@ -163,11 +152,10 @@ object Monad {
 
 }
 
-trait Traverse[F[_]] extends Functor[F] with Foldable[F] { self =>
-  def traverse[M[_]:Applicative,A,B](fa: F[A])(f: A => M[B]): M[F[B]] =
-    sequence(map(fa)(f))
-  def sequence[M[_]:Applicative,A](fma: F[M[A]]): M[F[A]] =
-    traverse(fma)(ma => ma)
+trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
+  self =>
+  def traverse[M[_]:Applicative,A,B](fa: F[A])(f: A => M[B]): M[F[B]] = sequence[M[B], B](map(fa)(f))
+  def sequence[M[_]:Applicative,A](fma: F[M[A]]): M[F[A]] = traverse(fma)(ma => ma)
 
   type Id[A] = A
 
@@ -176,8 +164,7 @@ trait Traverse[F[_]] extends Functor[F] with Foldable[F] { self =>
     override def flatMap[A,B](a: A)(f: A => B): B = f(a)
   }
 
-  def map[A,B](fa: F[A])(f: A => B): F[B] =
-    traverse[Id, A, B](fa)(f)(idMonad)
+  def map[A,B](fa: F[A])(f: A => B): F[B] = traverse[Id, A, B](fa)(f)(idMonad)
 
   import Applicative._
 
