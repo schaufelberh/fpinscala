@@ -597,7 +597,7 @@ object GeneralizedStreamTransducers {
           case Emit(h,t) => go(t, acc :+ h)
           case Halt(End) => F.unit(acc)
           case Halt(err) => F.fail(err)
-          case Await(req,recv) => F.flatMap (F.attempt(req)) { e => go(Try(recv(e)), acc) }
+          case Await(req,recv :(Either[Throwable, _] => Process[F, IndexedSeq[O]]) ) => F.flatMap (F.attempt(req)) { e => go(Try(recv(e)), acc) }
         }
       go(this, IndexedSeq())
     }
@@ -618,10 +618,11 @@ object GeneralizedStreamTransducers {
       p2 match {
         case Halt(e) => this.kill onHalt { e2 => Halt(e) ++ Halt(e2) }
         case Emit(h, t) => Emit(h, this |> t)
-        case Await(req,recv) => this match {
+        case Await(req ,recv :(Either[Throwable, _] => Process[O, O2])) => this match {
           case Halt(err) => Halt(err) |> recv(Left(err))
           case Emit(h,t) => t |> Try(recv(Right(h)))
-          case Await(req0,recv0) => await(req0)(recv0 andThen (_ |> p2))
+          case Await(req0,recv0:(Either[Throwable, _] => Process[F, O]))
+            => await(req0)(recv0 andThen (_ |> p2))
         }
       }
     }
@@ -668,19 +669,19 @@ object GeneralizedStreamTransducers {
      */
     def tee[O2,O3](p2: Process[F,O2])(t: Tee[O,O2,O3]): Process[F,O3] = {
       t match {
-        case Halt(e) => this.kill onComplete p2.kill onComplete Halt(e)
+        case Halt(e : Throwable) => this.kill.onComplete(p2.kill onComplete Halt(e))
         case Emit(h,t) => Emit(h, (this tee p2)(t))
-        case Await(side, recv) => side.get match {
+        case Await(side, recv : (Either[Throwable, _] => Process[F, O3] )) => side.get match {
           case Left(isO) => this match {
             case Halt(e) => p2.kill onComplete Halt(e)
             case Emit(o,ot) => (ot tee p2)(Try(recv(Right(o))))
-            case Await(reqL, recvL) =>
+            case Await(reqL, recvL : (Either[Throwable, _] => Process[F, O])) =>
               await(reqL)(recvL andThen (this2 => this2.tee(p2)(t)))
           }
           case Right(isO2) => p2 match {
             case Halt(e) => this.kill onComplete Halt(e)
             case Emit(o2,ot) => (this tee ot)(Try(recv(Right(o2))))
-            case Await(reqR, recvR) =>
+            case Await(reqR, recvR : (Either[Throwable,_] => Process[F, O2])) =>
               await(reqR)(recvR andThen (p3 => this.tee(p3)(t)))
           }
         }
@@ -775,7 +776,7 @@ object GeneralizedStreamTransducers {
           case Emit(h,t) => go(t, acc :+ h)
           case Halt(End) => acc
           case Halt(err) => throw err
-          case Await(req,recv) =>
+          case Await(req,recv :(Either[Throwable,_] => Process[IO, O])) =>
             val next =
               try recv(Right(fpinscala.iomonad.unsafePerformIO(req)(E)))
               catch { case err: Throwable => recv(Left(err)) }
